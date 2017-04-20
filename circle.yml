@@ -1,0 +1,76 @@
+machine:
+  timezone:
+    America/Chicago
+
+  node:
+    version: 5.5.0
+
+  php:
+    version: 5.6.22
+
+  environment:
+      YARN_VERSION: 0.18.1
+      PATH: "${PATH}:${HOME}/.yarn/bin:${HOME}/${CIRCLE_PROJECT_REPONAME}/node_modules/.bin:${HOME}/terminus/bin"
+
+  # This will be added to the `/etc/hosts` file
+  hosts:
+    wp-best-practices.dev: 127.0.0.1
+
+dependencies:
+  cache_directories:
+    - ~/.composer/cache
+    - ~/.terminus/tokens
+    - /home/ubuntu/nvm/versions/node/4.3.1/bin
+    - /home/ubuntu/nvm/versions/node/4.3.1/lib/node_modules
+    - /usr/local/bin/terminus
+    - ~/.yarn
+    - ~/.cache/yarn
+    - ~/terminus
+
+  pre:
+    # Dynamic hosts through Pantheon mean constantly checking interactively
+    # that we mean to connect to an unknown host. We ignore those here.
+    - echo Disabling strict host checking
+    - echo "StrictHostKeyChecking no" > ~/.ssh/config
+
+    # Install Yarn
+    - |
+      if [[ ! -e ~/.yarn/bin/yarn || $(yarn --version) != "${YARN_VERSION}" ]]; then
+        echo "Download and install Yarn."
+        curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version $YARN_VERSION
+      else
+        echo "The correct version of Yarn is already installed."
+      fi
+
+    # Use cURL to fetch WP-CLI
+    # - curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+
+    # Make sure WP-CLI is executable
+    # - chmod +x wp-cli.phar
+
+    # Set github token to avoid rate limit
+    - composer config --global github-oauth.github.com $GIT_TOKEN
+
+    - git config --global user.email $GIT_EMAIL
+    - git config --global user.name $GIT_USERNAME
+
+    # Install gulp
+    - echo Installing gulp globally
+    - yarn global add gulp
+
+    # Install Terminus
+    - ./bin/install_terminus.sh
+
+  override:
+    - ./bin/build.sh
+
+
+test:
+  override:
+    - ls
+
+deployment:
+  pantheon:
+    branch: /.*/
+    commands:
+      - ./bin/deploy_to_pantheon.sh
